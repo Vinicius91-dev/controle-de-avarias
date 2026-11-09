@@ -1,0 +1,327 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12365a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Avarias">
+<link rel="manifest" href="manifest.json">
+<title>Controle de Avarias</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f4f8;color:#172b40;font-family:Arial,sans-serif}
+header{background:#12365a;color:white;padding:22px 18px}
+header h1{margin:0;font-size:23px}
+header p{margin:6px 0 0;font-size:13px;color:#d5e5f5}
+main{max-width:760px;margin:auto;padding:16px}
+nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+button{border:0;border-radius:9px;padding:13px;background:#174c7c;color:white;font-weight:bold;font-size:14px;cursor:pointer}
+button.secondary{background:#e1eaf3;color:#174c7c}
+button.danger{background:#a92f35}
+button.green{background:#18734c}
+.card{background:white;border-radius:13px;padding:17px;margin-bottom:15px;box-shadow:0 2px 9px #142b4010}
+h2{font-size:18px;margin:0 0 15px}
+label{display:block;font-size:13px;font-weight:bold;margin:12px 0 6px}
+input,textarea,select{width:100%;padding:12px;border:1px solid #ccd5df;border-radius:8px;font-size:16px;background:white;color:#172b40}
+textarea{min-height:90px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.actions button{flex:1}
+.item{border:1px solid #e0e6ed;border-radius:10px;padding:13px;margin:10px 0}
+.item strong{display:block;margin-bottom:5px}
+.small{font-size:12px;color:#64758a}
+.hidden{display:none!important}
+.badge{display:inline-block;padding:4px 8px;background:#e6f1fa;color:#174c7c;border-radius:20px;font-size:12px}
+#status{font-size:13px;color:#18734c;margin-top:10px}
+footer{text-align:center;color:#8290a0;font-size:11px;padding:15px}
+@media(max-width:430px){main{padding:11px}.row{gap:8px}nav button{font-size:12px;padding:12px 5px}}
+@media print{
+header,nav,.no-print,footer{display:none!important}
+body{background:white}
+main{padding:0;max-width:none}
+.card{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Controle de Avarias</h1>
+<p>Registro e acompanhamento de ocorrências</p>
+</header>
+
+<main>
+<nav class="no-print">
+<button onclick="show('form')">+ Novo</button>
+<button onclick="show('history');render()">Histórico</button>
+<button onclick="show('export')">Exportar</button>
+</nav>
+
+<section id="form" class="card">
+<h2 id="formTitle">Nova avaria</h2>
+<form id="entryForm">
+<input type="hidden" id="editId">
+<label>Data</label>
+<input id="date" type="date" required>
+
+<div class="row">
+<div>
+<label>Prefixo / Trem</label>
+<input id="prefix" placeholder="Ex.: L98" required>
+</div>
+<div>
+<label>Nº do Vagão</label>
+<input id="wagon" placeholder="Número do vagão" required>
+</div>
+</div>
+
+<div class="row">
+<div>
+<label>Horário inicial</label>
+<input id="start" type="time">
+</div>
+<div>
+<label>Horário final</label>
+<input id="end" type="time">
+</div>
+</div>
+
+<label>Local</label>
+<input id="place" placeholder="Local da ocorrência" required>
+
+<label>Avaria relatada</label>
+<textarea id="damage" placeholder="Descreva a avaria..." required></textarea>
+
+<label>Retenção</label>
+<select id="retention">
+<option value="Não">Não</option>
+<option value="Sim">Sim</option>
+</select>
+
+<label>Responsável</label>
+<input id="person" placeholder="Digite o nome do responsável" required>
+
+<div class="actions">
+<button class="green" type="submit">Salvar avaria</button>
+<button type="button" class="secondary" onclick="resetForm()">Limpar</button>
+</div>
+<p id="status"></p>
+</form>
+</section>
+
+<section id="history" class="card hidden">
+<h2>Histórico de avarias</h2>
+<label>Pesquisar</label>
+<input id="search" placeholder="Vagão, responsável, prefixo ou local" oninput="render()">
+<div class="row">
+<div>
+<label>Data inicial</label>
+<input id="from" type="date" onchange="render()">
+</div>
+<div>
+<label>Data final</label>
+<input id="to" type="date" onchange="render()">
+</div>
+</div>
+<div class="actions no-print">
+<button class="secondary" onclick="clearFilters()">Limpar filtros</button>
+</div>
+<div id="records"></div>
+</section>
+
+<section id="export" class="card hidden">
+<h2>Exportar registros</h2>
+<label>Tipo de período</label>
+<select id="period" onchange="periodChange()">
+<option value="day">Um dia</option>
+<option value="month">Um mês</option>
+<option value="all">Todos os registros</option>
+</select>
+<label id="periodLabel">Data</label>
+<input id="periodDate" type="date">
+<div class="actions">
+<button class="green" onclick="exportCSV()">Exportar Excel (CSV)</button>
+<button onclick="printReport()">Imprimir / PDF</button>
+</div>
+<div class="actions">
+<button class="secondary" onclick="backup()">Fazer backup</button>
+<button class="secondary" onclick="document.getElementById('restoreFile').click()">Restaurar backup</button>
+<input id="restoreFile" type="file" accept=".json,application/json" class="hidden" onchange="restore(event)">
+</div>
+<p class="small">O CSV pode ser aberto no Excel. Para PDF, escolha "Salvar como PDF" na tela de impressão.</p>
+</section>
+</main>
+
+<footer>Controle de Avarias • Dados armazenados neste aparelho</footer>
+
+<script>
+const DBKEY='controle_avarias_v1';
+let records=load();
+
+function load(){
+ try{return JSON.parse(localStorage.getItem(DBKEY)||'[]')}
+ catch(e){return []}
+}
+function persist(){
+ localStorage.setItem(DBKEY,JSON.stringify(records));
+}
+function show(id){
+ ['form','history','export'].forEach(x=>
+ document.getElementById(x).classList.toggle('hidden',x!==id));
+}
+function today(){
+ const d=new Date();
+ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+document.getElementById('date').value=today();
+document.getElementById('periodDate').value=today();
+
+function resetForm(){
+ document.getElementById('entryForm').reset();
+ document.getElementById('editId').value='';
+ document.getElementById('date').value=today();
+ document.getElementById('formTitle').textContent='Nova avaria';
+ document.getElementById('status').textContent='';
+}
+document.getElementById('entryForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const id=document.getElementById('editId').value;
+ const old=records.find(r=>r.id===id);
+ const r={
+ id:id||String(Date.now())+'-'+Math.random().toString(36).slice(2,8),
+ date:val('date'),prefix:val('prefix').trim(),
+ wagon:val('wagon').trim(),start:val('start'),
+ end:val('end'),place:val('place').trim(),
+ damage:val('damage').trim(),retention:val('retention'),
+ person:val('person').trim(),
+ created:old?old.created:new Date().toISOString()
+ };
+ if(old) records=records.map(x=>x.id===id?r:x);
+ else records.push(r);
+ records.sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start));
+ persist();
+ document.getElementById('status').textContent='Registro salvo com sucesso!';
+ resetForm();
+ render();
+});
+function val(id){return document.getElementById(id).value}
+function edit(id){
+ const r=records.find(x=>x.id===id);
+ if(!r)return;
+ show('form');
+ document.getElementById('editId').value=r.id;
+ ['date','prefix','wagon','start','end','place','damage','retention','person']
+ .forEach(k=>document.getElementById(k).value=r[k]||'');
+ document.getElementById('formTitle').textContent='Editar avaria';
+ window.scrollTo(0,0);
+}
+function removeRecord(id){
+ if(!confirm('Deseja excluir esta avaria?'))return;
+ records=records.filter(r=>r.id!==id);
+ persist();render();
+}
+function esc(s){
+ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function render(){
+ const q=val('search').toLowerCase();
+ const from=val('from'),to=val('to');
+ const list=records.filter(r=>
+ (!from||r.date>=from)&&(!to||r.date<=to)&&
+ [r.prefix,r.wagon,r.place,r.damage,r.person].join(' ').toLowerCase().includes(q)
+ );
+ document.getElementById('records').innerHTML=
+ list.length?list.map(r=>`
+ <div class="item">
+ <strong>${esc(r.date.split('-').reverse().join('/'))} • Vagão ${esc(r.wagon)}</strong>
+ <span class="badge">${esc(r.retention==='Sim'?'Com retenção':'Sem retenção')}</span>
+ <p class="small">Prefixo: ${esc(r.prefix)} | Local: ${esc(r.place)}</p>
+ <p>${esc(r.damage)}</p>
+ <p class="small">Horário: ${esc(r.start)} a ${esc(r.end)} | Responsável: ${esc(r.person)}</p>
+ <div class="actions no-print">
+ <button class="secondary" onclick="edit('${r.id}')">Editar</button>
+ <button class="danger" onclick="removeRecord('${r.id}')">Excluir</button>
+ </div></div>`).join(''):
+ '<p class="small">Nenhum registro encontrado.</p>';
+}
+function clearFilters(){
+ ['search','from','to'].forEach(x=>document.getElementById(x).value='');
+ render();
+}
+function periodChange(){
+ const p=val('period');
+ document.getElementById('periodLabel').textContent=p==='day'?'Data':p==='month'?'Mês':'Período';
+ document.getElementById('periodDate').type=p==='month'?'month':'date';
+ document.getElementById('periodDate').value=p==='month'?today().slice(0,7):today();
+}
+function selected(){
+ const p=val('period'),d=val('periodDate');
+ return records.filter(r=>p==='all'||(p==='day'?r.date===d:r.date.startsWith(d)));
+}
+const columns=[
+ ['Data','date'],['Prefixo / Trem','prefix'],['Horário inicial','start'],
+ ['Local','place'],['Nº Vagão','wagon'],['Avaria Relatada','damage'],
+ ['Horário final','end'],['Retenção','retention'],['Responsável','person']
+];
+function csvCell(x){return '"'+String(x??'').replace(/"/g,'""')+'"'}
+function exportCSV(){
+ const list=selected();
+ if(!list.length){alert('Não existem registros nesse período.');return}
+ const lines=[
+ columns.map(c=>csvCell(c[0])).join(';'),
+ ...list.map(r=>columns.map(c=>csvCell(r[c[1]])).join(';'))
+ ];
+ const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+ download(blob,'avarias-'+today()+'.csv');
+}
+function download(blob,name){
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');a.href=url;a.download=name;
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function printReport(){
+ const list=selected();
+ if(!list.length){alert('Não existem registros nesse período.');return}
+ const w=window.open('','_blank');
+ if(!w){alert('Permita abrir a janela de impressão.');return}
+ w.document.write(`<!DOCTYPE html><html lang="pt-BR"><meta charset="UTF-8">
+ <title>Relatório de Avarias</title>
+ <style>body{font:12px Arial;padding:20px}h1{font-size:20px}
+ table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;text-align:left;vertical-align:top}
+ th{background:#eee} @media print{body{padding:0}}</style>
+ <h1>Relatório de Avarias</h1><p>Gerado em ${today().split('-').reverse().join('/')}</p>
+ <table><thead><tr>${columns.map(c=>'<th>'+esc(c[0])+'</th>').join('')}</tr></thead>
+ <tbody>${list.map(r=>'<tr>'+columns.map(c=>'<td>'+esc(r[c[1]])+'</td>').join('')+'</tr>').join('')}</tbody></table>
+ <script>window.onload=()=>window.print();<\/script></html>`);
+ w.document.close();
+}
+function backup(){
+ const blob=new Blob([JSON.stringify(records,null,2)],{type:'application/json'});
+ download(blob,'backup-avarias-'+today()+'.json');
+}
+function restore(e){
+ const file=e.target.files[0];if(!file)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+ try{
+ const data=JSON.parse(reader.result);
+ if(!Array.isArray(data)||!data.every(r=>r.id&&r.date&&r.wagon)){
+ throw Error('Formato inválido');
+ }
+ if(!confirm('Substituir os registros atuais pelo backup?'))return;
+ records=data;persist();render();alert('Backup restaurado!');
+ }catch(err){alert('Não foi possível restaurar esse arquivo.')}
+ e.target.value='';
+ };
+ reader.readAsText(file);
+}
+if('serviceWorker' in navigator && location.protocol!=='file:'){
+ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+render();
+</script>
+</body>
+</html>
